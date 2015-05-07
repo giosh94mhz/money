@@ -37,17 +37,22 @@ final class Money implements JsonSerializable
     private $amount;
 
     /**
-     * @var Currency
+     * @var CurrencyInterface
      */
     private $currency;
 
     /**
+     * @var CurrencyLoader
+     */
+    private static $currencyLoader;
+
+    /**
      * @param int  $amount   Amount, expressed in the smallest units of $currency (eg cents)
-     * @param Currency $currency
+     * @param CurrencyInterface $currency
      *
      * @throws InvalidArgumentException If amount is not integer
      */
-    public function __construct($amount, Currency $currency)
+    public function __construct($amount, CurrencyInterface $currency)
     {
         if (!is_int($amount)) {
             throw new InvalidArgumentException('Amount must be an integer');
@@ -71,7 +76,20 @@ final class Money implements JsonSerializable
      */
     public static function __callStatic($method, $arguments)
     {
-        return new Money($arguments[0], new Currency($method));
+        if (null === self::$currencyLoader) {
+            self::registerLoader(new ISOCurrencyLoader());
+        }
+
+        return new Money($arguments[0], self::$currencyLoader->load($method));
+    }
+
+    public static function registerLoader(CurrencyLoader $loader)
+    {
+        $previous = self::$currencyLoader;
+
+        self::$currencyLoader = $loader;
+
+        return $previous;
     }
 
     /**
@@ -164,7 +182,7 @@ final class Money implements JsonSerializable
     {
         return 0 >= $this->compare($other);
     }
-    
+
     /**
      * Checks whether the value represented by this object is less than the other
      *
@@ -176,7 +194,7 @@ final class Money implements JsonSerializable
     {
         return -1 == $this->compare($other);
     }
-    
+
     /**
      * @param \Money\Money $other
      * @return bool
@@ -211,7 +229,7 @@ final class Money implements JsonSerializable
     /**
      * Returns the currency of this object
      *
-     * @return Currency
+     * @return CurrencyInterface
      */
     public function getCurrency()
     {
@@ -356,12 +374,12 @@ final class Money implements JsonSerializable
     }
 
     /**
-     * @param Currency $targetCurrency
+     * @param CurrencyInterface $targetCurrency
      * @param float|int $conversionRate
      * @param int $roundingMode
      * @return Money
      */
-    public function convert(Currency $targetCurrency, $conversionRate, $roundingMode = Money::ROUND_HALF_UP)
+    public function convert(CurrencyInterface $targetCurrency, $conversionRate, $roundingMode = Money::ROUND_HALF_UP)
     {
         $this->assertRoundingMode($roundingMode);
         $amount = round($this->amount * $conversionRate, 0, $roundingMode);
